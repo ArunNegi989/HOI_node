@@ -17,7 +17,7 @@ connectDB(); // ✅ now this is a real function
 
 // Routes
 const authRoutes = require("./routes/routes");
-app.use("/v1/auth", authRoutes);
+app.use("/v1", authRoutes);
 
 app.get("/", (req, res) => {
   res.send("API running");
