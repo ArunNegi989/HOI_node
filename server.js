@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/connection"); // ✅ gets the function
+const routes = require("./routes/index");
 
 dotenv.config();
 
@@ -16,8 +17,7 @@ app.use(express.json());
 connectDB(); // ✅ now this is a real function
 
 // Routes
-const authRoutes = require("./routes/routes");
-app.use("/v1", authRoutes);
+app.use("/v1", routes);
 
 app.get("/", (req, res) => {
   res.send("API running");
