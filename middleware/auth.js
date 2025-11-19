@@ -1,4 +1,7 @@
+// middleware/auth.js
 const jwt = require("jsonwebtoken");
+
+const JWT_KEY = process.env.JWT_KEY || "dev_secret_key";
 
 module.exports = (req, res, next) => {
   try {
@@ -10,8 +13,9 @@ module.exports = (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    jwt.verify(token, process.env.JWT_KEY, (err, decoded) => {
+    jwt.verify(token, JWT_KEY, (err, decoded) => {
       if (err) {
+        console.log("JWT VERIFY ERROR:", err.message);
         return res.status(401).json({ message: "Invalid or expired token" });
       }
 
