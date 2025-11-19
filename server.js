@@ -1,11 +1,12 @@
 // server.js
+
+// 🔹 SABSE PEHLA: dotenv load karo
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
-const connectDB = require("./config/connection"); // ✅ gets the function
+const connectDB = require("./config/connection");
 const routes = require("./routes/index");
-
-dotenv.config();
 
 const app = express();
 
@@ -14,7 +15,7 @@ app.use(cors());
 app.use(express.json());
 
 // Connect to MongoDB
-connectDB(); // ✅ now this is a real function
+connectDB();
 
 // Routes
 app.use("/v1", routes);

@@ -1,29 +1,30 @@
 // middleware/auth.js
 const jwt = require("jsonwebtoken");
 
-const JWT_KEY = process.env.JWT_KEY || "dev_secret_key";
-
 module.exports = (req, res, next) => {
   try {
     const authHeader = req.headers["authorization"];
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader) {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const token = authHeader.split(" ")[1];
+    const parts = authHeader.split(" ");
+    if (parts.length !== 2 || parts[0] !== "Bearer") {
+      return res.status(401).json({ message: "Invalid token format" });
+    }
 
-    jwt.verify(token, JWT_KEY, (err, decoded) => {
-      if (err) {
-        console.log("JWT VERIFY ERROR:", err.message);
-        return res.status(401).json({ message: "Invalid or expired token" });
-      }
+    const token = parts[1];
 
-      req.userId = decoded.id;
-      next();
-    });
-  } catch (error) {
-    console.error("Auth middleware error:", error);
-    return res.status(500).json({ message: "Server error" });
+    const decoded = jwt.verify(token, process.env.JWT_KEY);
+
+    // Attach to request
+    req.userId = decoded.userId;
+    req.userRole = decoded.role || "user";
+
+    next();
+  } catch (err) {
+    console.error("Auth middleware error:", err);
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
 };
