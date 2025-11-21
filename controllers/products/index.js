@@ -13,7 +13,9 @@ const slugify = (text = "") =>
 exports.createProduct = async (req, res) => {
   try {
     if (req.userRole !== "admin") {
-      return res.status(403).json({ message: "Only admin can create products" });
+      return res
+        .status(403)
+        .json({ message: "Only admin can create products" });
     }
 
     let data = { ...req.body };
@@ -153,8 +155,14 @@ exports.createProduct = async (req, res) => {
 // ✅ GET ALL Products (with filters + pagination)
 exports.getProducts = async (req, res) => {
   try {
-    let { page = 1, limit = 10, search, category, status, isFeatured } =
-      req.query;
+    let {
+      page = 1,
+      limit = 10,
+      search,
+      category,
+      status,
+      isFeatured,
+    } = req.query;
     page = Number(page);
     limit = Number(limit);
 
@@ -239,7 +247,9 @@ exports.getProductBySlug = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     if (req.userRole !== "admin") {
-      return res.status(403).json({ message: "Only admin can update products" });
+      return res
+        .status(403)
+        .json({ message: "Only admin can update products" });
     }
 
     const { id } = req.params;
@@ -365,7 +375,9 @@ exports.updateProduct = async (req, res) => {
 exports.deleteProduct = async (req, res) => {
   try {
     if (req.userRole !== "admin") {
-      return res.status(403).json({ message: "Only admin can delete products" });
+      return res
+        .status(403)
+        .json({ message: "Only admin can delete products" });
     }
 
     const { id } = req.params;
