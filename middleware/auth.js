@@ -15,12 +15,15 @@ module.exports = (req, res, next) => {
     }
 
     const token = parts[1];
-
     const decoded = jwt.verify(token, process.env.JWT_KEY);
 
-    // Attach to request
     req.userId = decoded.userId;
     req.userRole = decoded.role || "user";
+
+    req.user = {
+      id: decoded.userId,
+      role: decoded.role || "user",
+    };
 
     next();
   } catch (err) {
