@@ -1,4 +1,3 @@
-// backend/models/User.js
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
@@ -35,21 +34,26 @@ const UserSchema = new Schema(
     role: {
       type: String,
       required: true,
-      default: "user", // "admin" / "user" etc
+      default: "user", 
     },
-    // store image as URL or file path (NOT File type)
     profileimage: {
       type: String,
-      default: "", // make it optional for now
+      default: "",
+    },
+
+    // ⭐ REQUIRED FOR FORGOT PASSWORD SYSTEM
+    resetPasswordToken: {
+      type: String,
+      default: null,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      default: null,
     },
   },
   {
     timestamps: true,
   }
 );
-
-// ❗ If you want paginate, you must import it first:
-// const paginate = require("mongoose-paginate-v2");
-// UserSchema.plugin(paginate);
 
 module.exports = mongoose.model("Users", UserSchema);

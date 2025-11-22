@@ -8,21 +8,29 @@ const {
   getUserdata,
   sendOtpRegister,
   verifyOtpRegister,
-} = require("../controllers/Auth/index"); // 🟢 NOTE: folder name "Auth"
+  forgotPassword,
+  resetPassword,
+} = require("../controllers/Auth/index");
 
 const auth = require("../middleware/auth");
 
-// Normal register (non-OTP) – optional but keeping:
+// Normal register
 router.post("/register", createUsers);
 
 // Login
 router.post("/login", loginUser);
 
-// Protected: get user data
+// Get logged in user
 router.get("/userdata", auth, getUserdata);
 
-// OTP register routes
+// OTP registration
 router.post("/register/send-otp", sendOtpRegister);
 router.post("/register/verify-otp", verifyOtpRegister);
+
+// ⭐ Forgot password
+router.post("/forgot-password", forgotPassword);
+
+// ⭐ Reset password
+router.post("/reset-password", resetPassword);
 
 module.exports = router;
