@@ -33,7 +33,8 @@ const productSchema = new mongoose.Schema(
     // BASIC INFO
     name: { type: String, required: true, trim: true },
     slug: { type: String, unique: true, sparse: true, trim: true },
-    brand: { type: String, trim: true },
+   brand: { type: String, required: true },
+
     gender: {
       type: String,
       enum: ["women", "men", "unisex"],

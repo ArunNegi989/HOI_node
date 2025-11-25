@@ -1,4 +1,3 @@
-// routes/productRoutes.js
 const express = require("express");
 const path = require("path");
 const multer = require("multer");
@@ -12,6 +11,7 @@ const {
   getProductBySlug,
   updateProduct,
   deleteProduct,
+  getProductsByBrand,   // 👈 ADD THIS
 } = require("../controllers/products/index");
 
 // ------------------- MULTER CONFIG -------------------
@@ -29,6 +29,9 @@ const upload = multer({ storage });
 
 // PUBLIC: list + filters
 router.get("/", getProducts);
+
+// ✅ PUBLIC: get products by brand
+router.get("/brand/:brand", getProductsByBrand);
 
 // PUBLIC: get product via slug (for product detail page)
 router.get("/slug/:slug", getProductBySlug);

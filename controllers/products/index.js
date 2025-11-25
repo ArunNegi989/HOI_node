@@ -162,6 +162,7 @@ exports.getProducts = async (req, res) => {
       category,
       status,
       isFeatured,
+      brand,              // 👈 add brand from query
     } = req.query;
     page = Number(page);
     limit = Number(limit);
@@ -179,6 +180,11 @@ exports.getProducts = async (req, res) => {
     }
     if (typeof isFeatured !== "undefined") {
       filter.isFeatured = isFeatured === "true";
+    }
+
+    // ⭐ BRAND FILTER (case-insensitive exact match)
+    if (brand) {
+      filter.brand = { $regex: `^${brand}$`, $options: "i" };
     }
 
     const [products, total] = await Promise.all([
@@ -206,6 +212,7 @@ exports.getProducts = async (req, res) => {
     });
   }
 };
+
 
 // ✅ GET Single Product (by ID)
 exports.getProductById = async (req, res) => {
@@ -390,6 +397,38 @@ exports.deleteProduct = async (req, res) => {
     console.error("Delete Product Error:", err);
     return res.status(500).json({
       message: "Failed to delete product",
+      error: err.message,
+    });
+  }
+};
+
+
+// ✅ GET Products by Brand (clean endpoint)
+exports.getProductsByBrand = async (req, res) => {
+  try {
+    const { brand } = req.params;
+
+    if (!brand) {
+      return res.status(400).json({ message: "Brand is required" });
+    }
+
+    // Case-insensitive exact match
+    const filter = {
+      brand: { $regex: `^${brand}$`, $options: "i" },
+    };
+
+    console.log("GetProductsByBrand filter:", filter); // 👀 debug
+
+    const products = await Product.find(filter).sort({ createdAt: -1 });
+
+    return res.json({
+      data: products,
+      count: products.length,
+    });
+  } catch (err) {
+    console.error("Get Products By Brand Error:", err);
+    return res.status(500).json({
+      message: "Failed to get products by brand",
       error: err.message,
     });
   }
