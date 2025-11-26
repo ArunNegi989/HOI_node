@@ -162,12 +162,18 @@ exports.getProducts = async (req, res) => {
       category,
       status,
       isFeatured,
-      brand,              // 👈 add brand from query
+      brand,    
+      gender,           // 👈 add brand from query
     } = req.query;
     page = Number(page);
     limit = Number(limit);
 
     const filter = {};
+    if (gender) {
+  // Case-insensitive exact match
+  filter.gender = { $regex: `^${gender}$`, $options: "i" };
+}
+
 
     if (search) {
       filter.name = { $regex: search, $options: "i" };
@@ -178,6 +184,14 @@ exports.getProducts = async (req, res) => {
     if (status) {
       filter.status = status;
     }
+    if (req.query.gender) {
+  filter.gender = { $regex: `^${req.query.gender}$`, $options: "i" };
+}
+
+if (req.query.color) {
+  filter.colors = { $elemMatch: { label: req.query.color } };
+}
+
     if (typeof isFeatured !== "undefined") {
       filter.isFeatured = isFeatured === "true";
     }
