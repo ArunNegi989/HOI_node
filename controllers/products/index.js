@@ -162,45 +162,93 @@ exports.getProducts = async (req, res) => {
       category,
       status,
       isFeatured,
-      brand,    
-      gender,           // 👈 add brand from query
+      brand,
+      gender,
+      size, // 👈 NEW: size filter from query (?size=M,L,XL)
     } = req.query;
+
     page = Number(page);
     limit = Number(limit);
 
     const filter = {};
-    if (gender) {
-  // Case-insensitive exact match
-  filter.gender = { $regex: `^${gender}$`, $options: "i" };
-}
 
-
+    // 🔎 Search by name
     if (search) {
       filter.name = { $regex: search, $options: "i" };
     }
+
+    // 🏷️ Category (single or multiple: ?category=Bra,Nightwear)
     if (category) {
-      filter.category = category;
+      const categories = category
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+
+      if (categories.length === 1) {
+        filter.category = categories[0];
+      } else if (categories.length > 1) {
+        filter.category = { $in: categories };
+      }
     }
+
+    // 📌 Status
     if (status) {
       filter.status = status;
     }
-    if (req.query.gender) {
-  filter.gender = { $regex: `^${req.query.gender}$`, $options: "i" };
-}
 
-if (req.query.color) {
-  filter.colors = { $elemMatch: { label: req.query.color } };
-}
+    // 🚻 Gender (case-insensitive exact)
+    if (gender) {
+      filter.gender = { $regex: `^${gender}$`, $options: "i" };
+    }
 
+    // 🎨 Color filter (colors: [{ label, hex }])
+    if (req.query.color) {
+      filter.colors = { $elemMatch: { label: req.query.color } };
+    }
+
+    // ⭐ Featured
     if (typeof isFeatured !== "undefined") {
       filter.isFeatured = isFeatured === "true";
     }
 
-    // ⭐ BRAND FILTER (case-insensitive exact match)
+    // 🧵 BRAND FILTER (single or multiple: ?brand=Jockey,Amanté)
     if (brand) {
-      filter.brand = { $regex: `^${brand}$`, $options: "i" };
+      const brands = brand
+        .split(",")
+        .map((b) => b.trim())
+        .filter(Boolean);
+
+      if (brands.length === 1) {
+        // case-insensitive exact match (single)
+        filter.brand = { $regex: `^${brands[0]}$`, $options: "i" };
+      } else if (brands.length > 1) {
+        // multiple brands (case-insensitive OR)
+        filter.$or = (filter.$or || []).concat(
+          brands.map((b) => ({
+            brand: { $regex: `^${b}$`, $options: "i" },
+          }))
+        );
+      }
     }
 
+    // 📏 SIZE FILTER (sizes: [{ label, stock }])
+    // ?size=M,L,XL -> matches any product where sizes.label IN [M,L,XL]
+    if (size) {
+      const sizes = size
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (sizes.length > 0) {
+        filter.sizes = {
+          $elemMatch: {
+            label: { $in: sizes },
+          },
+        };
+      }
+    }
+
+    // DB query + pagination
     const [products, total] = await Promise.all([
       Product.find(filter)
         .sort({ createdAt: -1 })
@@ -226,6 +274,7 @@ if (req.query.color) {
     });
   }
 };
+
 
 
 // ✅ GET Single Product (by ID)
