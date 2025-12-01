@@ -11,9 +11,12 @@ const {
   getOrderById,
   adminGetOrders,
   adminUpdateOrderStatus,
+  requestCancelOrder,
 } = require("../controllers/order/orderController");
 
 // USER ROUTES
+
+router.patch("/:id/request-cancel", auth, requestCancelOrder);
 router.post("/", auth, createOrder);
 router.get("/my-orders", auth, getMyOrders);
 router.get("/:id", auth, getOrderById);

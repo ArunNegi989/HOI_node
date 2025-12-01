@@ -97,6 +97,33 @@ const orderSchema = new Schema(
 
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
+
+    // 🔹 CANCELLATION FLOW FIELDS
+    cancelRequested: {
+      type: Boolean,
+      default: false,
+    },
+    cancelReason: {
+      type: String,
+      default: null,
+    },
+    cancelReasonNote: {
+      type: String,
+      default: null,
+    },
+    cancelRequestedAt: {
+      type: Date,
+      default: null,
+    },
+    cancelApprovedAt: {
+      type: Date,
+      default: null,
+    },
+    cancelledBy: {
+      type: Schema.Types.ObjectId, // admin user id (optional)
+      ref: "Users",
+      default: null,
+    },
   },
   {
     timestamps: true,

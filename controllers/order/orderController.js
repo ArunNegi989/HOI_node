@@ -1,12 +1,17 @@
 // controllers/order/orderController.js
 const Orders = require("../../models/Order");
 const Products = require("../../models/Product");
-const Users = require("../../models/Order"); // ✅ ensure this matches your actual file name
+const Users = require("../../models/User"); // ✅ sahi model
 
 const {
   sendOrderEmailToCustomer,
   sendNewOrderEmailToOwner,
 } = require("../../utils/sendOrderEmail");
+
+
+const sendCancelRequestEmailToOwner = require("../../utils/sendCancelRequestEmail");
+
+const CANCELLABLE_STATUSES = ["PLACED", "CONFIRMED", "PROCESSING"];
 
 // 🔹 helper: totals
 const calculateTotals = (items) => {
@@ -119,6 +124,79 @@ exports.getMyOrders = async (req, res) => {
   }
 };
 
+// ✅ USER: PATCH /v1/orders/:id/request-cancel
+// User reason bhejta hai, admin ko mail jata hai, order pe flag lagta hai.
+// Actual CANCELLED admin karega admin panel se.
+exports.requestCancelOrder = async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const userId = req.userId;
+    const { reason, reasonText } = req.body;
+
+    if (!reason) {
+      return res
+        .status(400)
+        .json({ message: "Cancellation reason is required" });
+    }
+
+    // ⭐ sirf apna order
+    const order = await Orders.findOne({ _id: orderId, user: userId })
+      .populate("user", "name email")
+      .exec();
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    const currentStatus = (order.status || "").toUpperCase();
+
+    if (currentStatus === "CANCELLED") {
+      return res
+        .status(400)
+        .json({ message: "This order is already cancelled" });
+    }
+
+    if (!CANCELLABLE_STATUSES.includes(currentStatus)) {
+      return res.status(400).json({
+        message:
+          "This order cannot be cancelled in its current status. Please contact support.",
+      });
+    }
+
+    if (order.cancelRequested) {
+      return res.status(400).json({
+        message: "Cancellation request is already submitted for this order.",
+      });
+    }
+
+    // 🔹 flags & reason
+    order.cancelRequested = true;
+    order.cancelReason = reason;
+    order.cancelReasonNote = reasonText || null;
+    order.cancelRequestedAt = new Date();
+
+    await order.save();
+
+    // 🔔 Admin ko mail
+    try {
+      await sendCancelRequestEmailToOwner(order.toObject());
+    } catch (emailErr) {
+      console.error("Cancel request email error:", emailErr);
+    }
+
+    return res.json({
+      message:
+        "Your cancellation request has been submitted. We will update you soon.",
+      order,
+    });
+  } catch (err) {
+    console.error("requestCancelOrder error:", err);
+    return res.status(500).json({
+      message: "Failed to submit cancellation request",
+    });
+  }
+};
+
 // ✅ GET /v1/orders/:id – detail (user or admin)
 exports.getOrderById = async (req, res) => {
   try {
@@ -181,6 +259,7 @@ exports.adminGetOrders = async (req, res) => {
 };
 
 // ✅ ADMIN: PATCH /v1/orders/admin/:id/status
+// ✅ ADMIN: PATCH /v1/orders/admin/:id/status
 exports.adminUpdateOrderStatus = async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -208,6 +287,8 @@ exports.adminUpdateOrderStatus = async (req, res) => {
     const order = await Orders.findById(orderId).populate("user", "name email");
     if (!order) return res.status(404).json({ message: "Order not found" });
 
+    const oldStatus = order.status;
+
     // update status & payment
     if (status) {
       order.status = status;
@@ -215,6 +296,56 @@ exports.adminUpdateOrderStatus = async (req, res) => {
       // COD: delivered hone par paymentStatus = PAID
       if (order.paymentMethod === "COD" && status === "DELIVERED") {
         order.paymentStatus = "PAID";
+      }
+
+      // 🔹 AGAR ADMIN CANCEL KAR RAHA HAI
+      if (status === "CANCELLED") {
+        // cancel flags
+        order.cancelApprovedAt = new Date();
+        order.cancelRequested = false;
+        order.cancelledBy = req.userId || null;
+
+        // payment handling
+        if (order.paymentMethod === "ONLINE") {
+          // Abhi direct REFUNDED mark kar rahe hain
+          // (Future me Razorpay refund integrate kar sakte ho)
+          order.paymentStatus = "REFUNDED";
+        } else if (order.paymentMethod === "COD") {
+          // COD me payment kabhi hua hi nahi
+          order.paymentStatus = "PENDING";
+        }
+
+        // 🔹 STOCK ROLLBACK (sirf pehli baar CANCELLED par)
+        if (oldStatus !== "CANCELLED") {
+          if (Array.isArray(order.items) && order.items.length > 0) {
+            for (const item of order.items) {
+              if (!item.product) continue;
+
+              const product = await Products.findById(item.product);
+              if (!product) continue;
+
+              const qty = item.quantity || 1;
+
+              // simple stock field
+              if (typeof product.stock === "number") {
+                product.stock += qty;
+              }
+
+              // size wise stock (agar tum sizes[] use karte ho)
+              if (Array.isArray(product.sizes) && item.size) {
+                const idx = product.sizes.findIndex(
+                  (s) => s.label === item.size
+                );
+                if (idx !== -1) {
+                  product.sizes[idx].stock =
+                    (product.sizes[idx].stock || 0) + qty;
+                }
+              }
+
+              await product.save();
+            }
+          }
+        }
       }
     }
 
@@ -228,7 +359,7 @@ exports.adminUpdateOrderStatus = async (req, res) => {
     if (status) {
       const orderObj = order.toObject();
 
-      // customer mail
+      // customer mail (CANCELLED bhi cover ho jayega)
       await sendOrderEmailToCustomer(orderObj, status);
 
       // admin mail (ALL ADMIN_EMAILS env me jitne bhi diye ho)
@@ -241,3 +372,4 @@ exports.adminUpdateOrderStatus = async (req, res) => {
     return res.status(500).json({ message: "Failed to update order" });
   }
 };
+
