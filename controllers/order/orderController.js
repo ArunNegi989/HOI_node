@@ -8,7 +8,6 @@ const {
   sendNewOrderEmailToOwner,
 } = require("../../utils/sendOrderEmail");
 
-
 const sendCancelRequestEmailToOwner = require("../../utils/sendCancelRequestEmail");
 
 const CANCELLABLE_STATUSES = ["PLACED", "CONFIRMED", "PROCESSING"];
@@ -30,6 +29,82 @@ const calculateTotals = (items) => {
   return { mrpTotal, itemsTotal, discountTotal, shippingFee, grandTotal };
 };
 
+// 🔹 helper: compare 2 addresses roughly same hain ya nahi
+const isSameAddress = (a, b) => {
+  if (!a || !b) return false;
+
+  const norm = (v) => (v || "").toString().trim().toLowerCase();
+
+  return (
+    norm(a.addressLine1) === norm(b.addressLine1) &&
+    norm(a.pincode) === norm(b.pincode) &&
+    norm(a.phone) === norm(b.phone)
+  );
+};
+
+// 🔹 helper: order ke shippingAddress ko user.addresses me save karna (agar new hai)
+const ensureAddressSavedForUser = async (userId, shippingAddress) => {
+  try {
+    if (!userId || !shippingAddress) return;
+
+    const user = await Users.findById(userId);
+    if (!user) return;
+
+    if (!Array.isArray(user.addresses)) {
+      user.addresses = [];
+    }
+
+    // already similar address exist?
+    const exists = user.addresses.some((addr) =>
+      isSameAddress(addr, shippingAddress)
+    );
+
+    if (exists) return;
+
+    const isFirst = user.addresses.length === 0;
+
+    user.addresses.push({
+      name: shippingAddress.name,
+      phone: shippingAddress.phone,
+      pincode: shippingAddress.pincode,
+      addressLine1: shippingAddress.addressLine1,
+      addressLine2: shippingAddress.addressLine2,
+      city: shippingAddress.city,
+      state: shippingAddress.state,
+      landmark: shippingAddress.landmark,
+      addressType: shippingAddress.addressType || "home",
+      isDefault: isFirst,
+    });
+
+    await user.save();
+  } catch (err) {
+    console.error("ensureAddressSavedForUser error:", err);
+  }
+};
+
+// 🔹 helper: product image safe fallback (kabhi empty na rahe)
+const getProductImage = (prod) => {
+  if (!prod) return "https://via.placeholder.com/400x600?text=HOI";
+  return (
+    (Array.isArray(prod.images) && prod.images[0]) ||
+    prod.image ||
+    prod.mainImage ||
+    "https://via.placeholder.com/400x600?text=HOI"
+  );
+};
+
+// 🔹 helper: item se productId safely nikaalo
+const getItemProductId = (item) => {
+  if (!item) return null;
+  return (
+    item.productId ||
+    item._id ||
+    (item.product && item.product._id) ||
+    item.id ||
+    null
+  );
+};
+
 // ✅ POST /v1/orders – user creates order (checkout se)
 exports.createOrder = async (req, res) => {
   try {
@@ -41,18 +116,45 @@ exports.createOrder = async (req, res) => {
       return res.status(400).json({ message: "No items in order" });
     }
 
-    if (!shippingAddress || !shippingAddress.name) {
-      return res.status(400).json({ message: "Shipping address is required" });
+    if (
+      !shippingAddress ||
+      !shippingAddress.name ||
+      !shippingAddress.phone ||
+      !shippingAddress.addressLine1 ||
+      !shippingAddress.city ||
+      !shippingAddress.state ||
+      !shippingAddress.pincode
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Complete shipping address is required" });
     }
 
-    // 1) get product details from DB
-    const productIds = items.map((i) => i.productId);
+    if (!paymentMethod || !["COD", "ONLINE"].includes(paymentMethod)) {
+      return res.status(400).json({ message: "Invalid payment method" });
+    }
+
+    // 1) get product IDs safely
+    const productIds = items.map((i) => getItemProductId(i));
+
+    if (productIds.some((id) => !id)) {
+      return res.status(400).json({
+        message:
+          "One or more cart items are missing productId. Please refresh your cart and try again.",
+      });
+    }
+
+    // 2) get product details from DB
     const products = await Products.find({ _id: { $in: productIds } });
 
-    const orderItems = items.map((item) => {
-      const product = products.find((p) => p._id.toString() === item.productId);
+    const missingProducts = [];
+    const orderItems = items.map((item, idx) => {
+      const pid = productIds[idx];
+      const product = products.find((p) => p._id.toString() === pid.toString());
+
       if (!product) {
-        throw new Error(`Product not found: ${item.productId}`);
+        missingProducts.push(pid);
+        return null;
       }
 
       const mrp = product.price?.mrp || product.mrp;
@@ -62,9 +164,12 @@ exports.createOrder = async (req, res) => {
       return {
         product: product._id,
         name: product.name,
-        image: product.images?.[0] || product.image,
+        image: getProductImage(product), // ✅ always non-empty
         color: item.color,
-        size: item.size,
+        size:
+          typeof item.size === "string"
+            ? item.size
+            : item.size?.label || undefined,
         mrp,
         salePrice,
         quantity,
@@ -73,13 +178,39 @@ exports.createOrder = async (req, res) => {
       };
     });
 
-    const totals = calculateTotals(orderItems);
+    // agar koi product missing hai
+    if (missingProducts.length > 0) {
+      console.error("Missing products in order:", missingProducts);
+      return res.status(400).json({
+        message:
+          "Some products in your cart are no longer available. Please refresh your cart.",
+      });
+    }
 
-    // 2) order create
+    const validOrderItems = orderItems.filter(Boolean);
+    if (!validOrderItems.length) {
+      return res.status(400).json({
+        message: "No valid items in order.",
+      });
+    }
+
+    const totals = calculateTotals(validOrderItems);
+
+    // 3) order create
     const newOrder = await Orders.create({
       user: userId,
-      items: orderItems,
-      shippingAddress,
+      items: validOrderItems,
+      shippingAddress: {
+        name: shippingAddress.name,
+        phone: shippingAddress.phone,
+        pincode: shippingAddress.pincode,
+        addressLine1: shippingAddress.addressLine1,
+        addressLine2: shippingAddress.addressLine2,
+        city: shippingAddress.city,
+        state: shippingAddress.state,
+        landmark: shippingAddress.landmark,
+        addressType: shippingAddress.addressType || "home",
+      },
       paymentMethod,
       paymentStatus: "PENDING", // ONLINE ke liye webhook se PAID karoge
       status: "PLACED",
@@ -88,7 +219,10 @@ exports.createOrder = async (req, res) => {
       notes,
     });
 
-    // 3) user details for email
+    // 4) shippingAddress ko user ke addresses[] me bhi save karo (agar new hai)
+    await ensureAddressSavedForUser(userId, shippingAddress);
+
+    // 5) user details for email
     const user = await Users.findById(userId).select("name email");
     const orderForEmail = {
       ...newOrder.toObject(),
@@ -125,8 +259,6 @@ exports.getMyOrders = async (req, res) => {
 };
 
 // ✅ USER: PATCH /v1/orders/:id/request-cancel
-// User reason bhejta hai, admin ko mail jata hai, order pe flag lagta hai.
-// Actual CANCELLED admin karega admin panel se.
 exports.requestCancelOrder = async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -259,7 +391,6 @@ exports.adminGetOrders = async (req, res) => {
 };
 
 // ✅ ADMIN: PATCH /v1/orders/admin/:id/status
-// ✅ ADMIN: PATCH /v1/orders/admin/:id/status
 exports.adminUpdateOrderStatus = async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -308,7 +439,6 @@ exports.adminUpdateOrderStatus = async (req, res) => {
         // payment handling
         if (order.paymentMethod === "ONLINE") {
           // Abhi direct REFUNDED mark kar rahe hain
-          // (Future me Razorpay refund integrate kar sakte ho)
           order.paymentStatus = "REFUNDED";
         } else if (order.paymentMethod === "COD") {
           // COD me payment kabhi hua hi nahi
@@ -331,7 +461,7 @@ exports.adminUpdateOrderStatus = async (req, res) => {
                 product.stock += qty;
               }
 
-              // size wise stock (agar tum sizes[] use karte ho)
+              // size wise stock
               if (Array.isArray(product.sizes) && item.size) {
                 const idx = product.sizes.findIndex(
                   (s) => s.label === item.size
@@ -359,10 +489,7 @@ exports.adminUpdateOrderStatus = async (req, res) => {
     if (status) {
       const orderObj = order.toObject();
 
-      // customer mail (CANCELLED bhi cover ho jayega)
       await sendOrderEmailToCustomer(orderObj, status);
-
-      // admin mail (ALL ADMIN_EMAILS env me jitne bhi diye ho)
       await sendNewOrderEmailToOwner(orderObj, status);
     }
 
@@ -372,4 +499,3 @@ exports.adminUpdateOrderStatus = async (req, res) => {
     return res.status(500).json({ message: "Failed to update order" });
   }
 };
-

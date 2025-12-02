@@ -2,6 +2,7 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
+// -------- ORDER ITEM SUB-SCHEMA --------
 const orderItemSchema = new Schema(
   {
     product: {
@@ -22,6 +23,7 @@ const orderItemSchema = new Schema(
   { _id: false }
 );
 
+// -------- SHIPPING ADDRESS SUB-SCHEMA --------
 const addressSchema = new Schema(
   {
     name: { type: String, required: true },
@@ -41,24 +43,30 @@ const addressSchema = new Schema(
   { _id: false }
 );
 
+// -------- MAIN ORDER SCHEMA --------
 const orderSchema = new Schema(
   {
+    // kis user ne order kiya
     user: {
       type: Schema.Types.ObjectId,
       ref: "Users",
       required: true,
     },
 
+    // human-friendly order number (HOI251202XXXX)
     orderNumber: {
       type: String,
       unique: true,
       index: true,
     },
 
+    // items list
     items: [orderItemSchema],
 
+    // shipping address snapshot
     shippingAddress: addressSchema,
 
+    // payment info
     paymentMethod: {
       type: String,
       enum: ["COD", "ONLINE"],
@@ -71,6 +79,7 @@ const orderSchema = new Schema(
       default: "PENDING",
     },
 
+    // order lifecycle status
     status: {
       type: String,
       enum: [
@@ -86,15 +95,18 @@ const orderSchema = new Schema(
       index: true,
     },
 
-    itemsTotal: { type: Number, required: true },
-    mrpTotal: { type: Number, required: true },
-    discountTotal: { type: Number, required: true },
+    // totals
+    itemsTotal: { type: Number, required: true }, // salePrice sum (before shipping)
+    mrpTotal: { type: Number, required: true }, // MRP total
+    discountTotal: { type: Number, required: true }, // mrpTotal - itemsTotal
     shippingFee: { type: Number, default: 0 },
-    grandTotal: { type: Number, required: true },
-    totalSavings: { type: Number, required: true },
+    grandTotal: { type: Number, required: true }, // itemsTotal + shippingFee
+    totalSavings: { type: Number, required: true }, // extra display
 
+    // notes / special instructions
     notes: { type: String },
 
+    // payment gateway fields (future Razorpay etc.)
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
 
@@ -126,17 +138,19 @@ const orderSchema = new Schema(
     },
   },
   {
-    timestamps: true,
+    timestamps: true, // createdAt, updatedAt
   }
 );
 
+// -------- PRE-SAVE HOOK: AUTO ORDER NUMBER --------
 orderSchema.pre("save", function (next) {
   if (!this.orderNumber) {
     const now = new Date();
-    const y = now.getFullYear().toString().slice(-2);
-    const m = (now.getMonth() + 1).toString().padStart(2, "0");
-    const d = now.getDate().toString().padStart(2, "0");
-    const rand = Math.floor(1000 + Math.random() * 9000);
+    const y = now.getFullYear().toString().slice(-2); // last 2 digits of year
+    const m = (now.getMonth() + 1).toString().padStart(2, "0"); // month 01-12
+    const d = now.getDate().toString().padStart(2, "0"); // day 01-31
+    const rand = Math.floor(1000 + Math.random() * 9000); // 4 digit random
+
     this.orderNumber = `HOI${y}${m}${d}${rand}`;
   }
   next();

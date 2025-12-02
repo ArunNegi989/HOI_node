@@ -35,7 +35,6 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-
 // ✅ Delete user by ID
 exports.deleteUser = async (req, res) => {
   try {
