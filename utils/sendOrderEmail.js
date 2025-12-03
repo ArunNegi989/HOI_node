@@ -422,7 +422,7 @@ const sendNewOrderEmailToOwner = async (order) => {
 
       ${ORDER_SUMMARY(order)}
 
-      ${CTA_BUTTON("Open Admin Dashboard", `${FRONTEND_URL}/admin/orders`)}
+      ${CTA_BUTTON("Open Admin Dashboard", `${FRONTEND_URL}/admin/placed-orders`)}
     `,
       "New HOI order received."
     );
