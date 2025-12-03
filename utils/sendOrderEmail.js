@@ -84,6 +84,97 @@ const CTA_BUTTON = (text, url) => `
   </table>
 `;
 
+// 🔹 ITEMS TABLE (PRODUCT NAME, PRICE, SIZE, COLOR DOT, BRAND, QTY)
+const ITEMS_TABLE = (order) => {
+  if (!order.items || !order.items.length) return "";
+
+  const rows = order.items
+    .map((item) => {
+      const brandLine = item.brand
+        ? `<div style="font-size:11px; color:#777;">Brand: ${item.brand}</div>`
+        : "";
+
+      const mrpLine =
+        item.mrp && item.mrp !== item.salePrice
+          ? `<div style="font-size:11px; color:#999; text-decoration:line-through;">MRP: ₹${item.mrp}</div>`
+          : "";
+
+      // 🔴 Color DOT + text
+      const colorDot = item.color
+        ? `<span style="
+              display:inline-block;
+              width:12px;
+              height:12px;
+              border-radius:50%;
+              border:1px solid #ccc;
+              background:${item.color};
+              vertical-align:middle;
+              margin-right:6px;
+            "></span>`
+        : "";
+
+      const sizeLabel = item.size ? `Size: ${item.size}` : "Size: -";
+
+      const colorLabel = item.color
+        ? `${colorDot}<span style="vertical-align:middle;">${item.color}</span>`
+        : "Color: -";
+
+      return `
+        <tr>
+          <td style="padding:8px 6px; border-top:1px solid #f2cede;">
+            <div style="font-size:13px; font-weight:bold; color:${TEXT_COLOR};">
+              ${item.name}
+            </div>
+            ${brandLine}
+            <div style="font-size:11px; color:#555; margin-top:2px;">
+              ${sizeLabel} &nbsp; • &nbsp; ${colorLabel}
+            </div>
+          </td>
+          <td style="padding:8px 6px; border-top:1px solid #f2cede; font-size:13px; color:#555;" align="center">
+            ×${item.quantity || 1}
+          </td>
+          <td style="padding:8px 6px; border-top:1px solid #f2cede; font-size:13px; color:#555;" align="right">
+            <div>₹${item.salePrice}</div>
+            ${mrpLine}
+            ${
+              item.lineTotal
+                ? `<div style="font-size:11px; color:${BRAND_COLOR}; margin-top:2px;">
+                     Line total: ₹${item.lineTotal}
+                   </div>`
+                : ""
+            }
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+    <table width="100%" border="0" cellspacing="0" cellpadding="0"
+           style="margin-top:18px; background-color:#fffafa; border-radius:8px; padding:0; border:1px solid #f2cede;">
+      <tr>
+        <td colspan="3" style="padding:10px 14px 6px; font-family:Arial, sans-serif;">
+          <span style="font-size:14px; font-weight:bold; color:${TEXT_COLOR};">
+            Items in this order
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <td colspan="3" style="padding:0 14px 10px;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-family:Arial, sans-serif; font-size:13px;">
+            <tr>
+              <th align="left" style="font-size:12px; color:#999; font-weight:600; padding:4px 6px 6px;">Product</th>
+              <th align="center" style="font-size:12px; color:#999; font-weight:600; padding:4px 6px 6px;">Qty</th>
+              <th align="right" style="font-size:12px; color:#999; font-weight:600; padding:4px 6px 6px;">Price</th>
+            </tr>
+            ${rows}
+          </table>
+        </td>
+      </tr>
+    </table>
+  `;
+};
+
 const ORDER_SUMMARY = (order) => `
   <table width="100%" border="0" cellspacing="0" cellpadding="0" 
          style="margin-top:18px; background-color:${ACCENT_BG}; border-radius:8px; padding:0;">
@@ -157,6 +248,39 @@ const FRIENDLY_NOTE = `
   </p>
 `;
 
+// 🔹 CUSTOMER DETAILS BLOCK (for OWNER email)
+const CUSTOMER_DETAILS = (order) => {
+  const a = order.shippingAddress || {};
+  return `
+    <table width="100%" border="0" cellspacing="0" cellpadding="0"
+           style="margin-top:18px; background:#fff7fc; border-radius:8px; border:1px solid #f2cede;">
+      <tr>
+        <td style="padding:12px 14px; font-family:Arial;">
+          <div style="font-size:15px; font-weight:bold; color:${TEXT_COLOR}; margin-bottom:6px;">
+            Customer Details
+          </div>
+
+          <div style="font-size:13px; color:#444; line-height:1.5;">
+            <b>Name:</b> ${a.name || order.user?.name || "-"}<br/>
+            <b>Email:</b> ${order.user?.email || "-"}<br/>
+            <b>Phone:</b> ${a.phone || order.user?.phone || "-"}<br/>
+          </div>
+
+          <div style="font-size:13px; color:#444; margin-top:8px; line-height:1.5;">
+            <b>Address:</b><br/>
+            ${a.addressLine1 || ""}${a.addressLine1 ? "<br/>" : ""}
+            ${a.addressLine2 || ""}${a.addressLine2 ? "<br/>" : ""}
+            ${(a.city || "") + (a.city ? ", " : "")}${a.state || ""}${
+              a.pincode ? " - " + a.pincode : ""
+            }<br/>
+            <b>Type:</b> ${a.addressType || "N/A"}
+          </div>
+        </td>
+      </tr>
+    </table>
+  `;
+};
+
 // ---- TEMPLATES PER STATUS ----
 const TEMPLATES = {
   PLACED: (name, order) =>
@@ -182,6 +306,7 @@ const TEMPLATES = {
         <li>We’ll notify you again when it’s shipped and out for delivery.</li>
       </ul>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${CTA_BUTTON("Track / View Your Order", `${FRONTEND_URL}/account/orders`)}
@@ -208,6 +333,7 @@ const TEMPLATES = {
         You’ll receive another update when your parcel has been <b>shipped</b>.
       </p>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${CTA_BUTTON("View Order Details", `${FRONTEND_URL}/account/orders`)}
@@ -234,6 +360,7 @@ const TEMPLATES = {
         As soon as it is shipped, we’ll send you another update.
       </p>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${FRIENDLY_NOTE}
@@ -258,6 +385,7 @@ const TEMPLATES = {
         You can check the latest status anytime from your account.
       </p>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${CTA_BUTTON("Track Live Status", `${FRONTEND_URL}/account/orders`)}
@@ -281,6 +409,7 @@ const TEMPLATES = {
         Please keep your phone reachable and, if it’s a COD order, the amount handy for a smooth delivery.
       </p>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${CTA_BUTTON("View Delivery Details", `${FRONTEND_URL}/account/orders`)}
@@ -306,6 +435,7 @@ const TEMPLATES = {
         If something doesn’t feel right with your order, just reach out to us and we’ll be happy to help.
       </p>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${CTA_BUTTON("Explore More Styles", `${FRONTEND_URL}/shop`)}
@@ -336,6 +466,7 @@ const TEMPLATES = {
         If this was not requested by you, or if you have any questions, please contact our support team.
       </p>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${FRIENDLY_NOTE}
@@ -357,6 +488,7 @@ const TEMPLATES = {
         Your items will now move into <b>confirmation</b> and <b>processing</b>.
       </p>
 
+      ${ITEMS_TABLE(order)}
       ${ORDER_SUMMARY(order)}
 
       ${CTA_BUTTON("View Order", `${FRONTEND_URL}/account/orders`)}
@@ -419,6 +551,10 @@ const sendNewOrderEmailToOwner = async (order) => {
       <p style="font-size:13px; color:#555; margin:0 0 10px;">
         A new order has been placed on <b>House of Intimacy</b>. Please review and process it from your admin panel.
       </p>
+
+      ${CUSTOMER_DETAILS(order)}
+
+      ${ITEMS_TABLE(order)}
 
       ${ORDER_SUMMARY(order)}
 

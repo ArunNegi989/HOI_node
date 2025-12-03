@@ -391,6 +391,7 @@ exports.adminGetOrders = async (req, res) => {
 };
 
 // ✅ ADMIN: PATCH /v1/orders/admin/:id/status
+// ✅ ADMIN: PATCH /v1/orders/admin/:id/status
 exports.adminUpdateOrderStatus = async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -431,21 +432,17 @@ exports.adminUpdateOrderStatus = async (req, res) => {
 
       // 🔹 AGAR ADMIN CANCEL KAR RAHA HAI
       if (status === "CANCELLED") {
-        // cancel flags
         order.cancelApprovedAt = new Date();
         order.cancelRequested = false;
         order.cancelledBy = req.userId || null;
 
-        // payment handling
         if (order.paymentMethod === "ONLINE") {
-          // Abhi direct REFUNDED mark kar rahe hain
           order.paymentStatus = "REFUNDED";
         } else if (order.paymentMethod === "COD") {
-          // COD me payment kabhi hua hi nahi
           order.paymentStatus = "PENDING";
         }
 
-        // 🔹 STOCK ROLLBACK (sirf pehli baar CANCELLED par)
+        // 🔹 STOCK ROLLBACK
         if (oldStatus !== "CANCELLED") {
           if (Array.isArray(order.items) && order.items.length > 0) {
             for (const item of order.items) {
@@ -456,12 +453,10 @@ exports.adminUpdateOrderStatus = async (req, res) => {
 
               const qty = item.quantity || 1;
 
-              // simple stock field
               if (typeof product.stock === "number") {
                 product.stock += qty;
               }
 
-              // size wise stock
               if (Array.isArray(product.sizes) && item.size) {
                 const idx = product.sizes.findIndex(
                   (s) => s.label === item.size
@@ -485,12 +480,11 @@ exports.adminUpdateOrderStatus = async (req, res) => {
 
     await order.save();
 
-    // ✅ Email: user + admin dono ko jab STATUS change hua ho
+    // ✅ Email: sirf customer ko status update
     if (status) {
       const orderObj = order.toObject();
-
       await sendOrderEmailToCustomer(orderObj, status);
-      await sendNewOrderEmailToOwner(orderObj, status);
+      // ❌ yahan sendNewOrderEmailToOwner nahin call karna
     }
 
     return res.json(order);
@@ -499,4 +493,5 @@ exports.adminUpdateOrderStatus = async (req, res) => {
     return res.status(500).json({ message: "Failed to update order" });
   }
 };
+
 
