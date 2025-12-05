@@ -1,7 +1,10 @@
 // controllers/user/addressController.js
 const Users = require("../../models/User");
 
-// ✅ GET /v1/users/me/addresses – current user addresses list
+// helper to normalize strings
+const normalize = (str) => (str || "").trim().toLowerCase();
+
+// ✅ GET /v1/users/addresses – current user addresses list
 exports.getMyAddresses = async (req, res) => {
   try {
     const userId = req.userId;
@@ -18,7 +21,7 @@ exports.getMyAddresses = async (req, res) => {
   }
 };
 
-// ✅ POST /v1/users/me/addresses – add new address
+// ✅ POST /v1/users/addresses – add new address
 exports.addAddress = async (req, res) => {
   try {
     const userId = req.userId;
@@ -51,6 +54,21 @@ exports.addAddress = async (req, res) => {
       user.addresses = [];
     }
 
+    // 🔹 DUPLICATE CHECK
+    const alreadyExists = user.addresses.some((a) =>
+      normalize(a.addressLine1) === normalize(addressLine1) &&
+      normalize(a.addressLine2) === normalize(addressLine2) &&
+      normalize(a.city) === normalize(city) &&
+      normalize(a.state) === normalize(state) &&
+      normalize(a.pincode) === normalize(pincode)
+    );
+
+    if (alreadyExists) {
+      return res
+        .status(400)
+        .json({ message: "This address already exists in your account." });
+    }
+
     const newAddress = {
       name,
       phone,
@@ -68,7 +86,6 @@ exports.addAddress = async (req, res) => {
     if (user.addresses.length === 0) {
       newAddress.isDefault = true;
     } else if (isDefault) {
-      // agar client ne isDefault true bheja
       user.addresses.forEach((a) => {
         a.isDefault = false;
       });
@@ -85,7 +102,7 @@ exports.addAddress = async (req, res) => {
   }
 };
 
-// ✅ PUT /v1/users/me/addresses/:addressId – update existing
+// ✅ PUT /v1/users/addresses/:addressId – update existing
 exports.updateAddress = async (req, res) => {
   try {
     const userId = req.userId;
@@ -139,7 +156,7 @@ exports.updateAddress = async (req, res) => {
   }
 };
 
-// ✅ DELETE /v1/users/me/addresses/:addressId – remove address
+// ✅ DELETE /v1/users/addresses/:addressId – remove address
 exports.deleteAddress = async (req, res) => {
   try {
     const userId = req.userId;
@@ -150,21 +167,32 @@ exports.deleteAddress = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const address = user.addresses.id(addressId);
-    if (!address) {
+    if (!Array.isArray(user.addresses) || user.addresses.length === 0) {
+      return res.status(404).json({ message: "No addresses found" });
+    }
+
+    // find index instead of using subdoc.remove()
+    const index = user.addresses.findIndex(
+      (a) => a._id.toString() === addressId
+    );
+
+    if (index === -1) {
       return res.status(404).json({ message: "Address not found" });
     }
 
-    const wasDefault = address.isDefault;
+    const wasDefault = user.addresses[index].isDefault === true;
 
-    address.remove();
+    // remove from array
+    user.addresses.splice(index, 1);
 
+    // if it was default, make first one default (if any)
     if (wasDefault && user.addresses.length > 0) {
       user.addresses[0].isDefault = true;
     }
 
     await user.save();
 
+    // send updated addresses back
     return res.json(user.addresses);
   } catch (err) {
     console.error("deleteAddress error:", err);
@@ -172,7 +200,7 @@ exports.deleteAddress = async (req, res) => {
   }
 };
 
-// ✅ PATCH /v1/users/me/addresses/:addressId/default – set default
+// ✅ PATCH /v1/users/addresses/:addressId/default – set default
 exports.setDefaultAddress = async (req, res) => {
   try {
     const userId = req.userId;
