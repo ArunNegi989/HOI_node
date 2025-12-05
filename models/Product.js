@@ -80,6 +80,15 @@ const productSchema = new mongoose.Schema(
     // DESCRIPTIONS
     shortDescription: { type: String, trim: true },
     description: { type: String, trim: true },
+    features: {
+      type: [String],
+      default: [],
+    },
+
+    shippingAndReturns: {
+      type: [String],
+      default: [],
+    },
 
     // TAGS & COLLECTIONS
     tags: [{ type: String }],

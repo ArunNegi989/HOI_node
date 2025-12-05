@@ -69,6 +69,24 @@ exports.createProduct = async (req, res) => {
       }
     }
 
+    // ⭐ NEW: features (array of strings)
+    if (data.features) {
+      try {
+        data.features = JSON.parse(data.features);
+      } catch (e) {
+        data.features = [];
+      }
+    }
+
+    // ⭐ NEW: shippingAndReturns (array of strings)
+    if (data.shippingAndReturns) {
+      try {
+        data.shippingAndReturns = JSON.parse(data.shippingAndReturns);
+      } catch (e) {
+        data.shippingAndReturns = [];
+      }
+    }
+
     // 👉 handle images from multer
     if (req.files?.mainImage?.[0]) {
       data.mainImage = `/uploads/products/${req.files.mainImage[0].filename}`;
@@ -275,8 +293,6 @@ exports.getProducts = async (req, res) => {
   }
 };
 
-
-
 // ✅ GET Single Product (by ID)
 exports.getProductById = async (req, res) => {
   try {
@@ -361,6 +377,20 @@ exports.updateProduct = async (req, res) => {
     if (data.collections) {
       try {
         data.collections = JSON.parse(data.collections);
+      } catch (e) {}
+    }
+
+    // ⭐ NEW: features
+    if (data.features) {
+      try {
+        data.features = JSON.parse(data.features);
+      } catch (e) {}
+    }
+
+    // ⭐ NEW: shippingAndReturns
+    if (data.shippingAndReturns) {
+      try {
+        data.shippingAndReturns = JSON.parse(data.shippingAndReturns);
       } catch (e) {}
     }
 
@@ -464,7 +494,6 @@ exports.deleteProduct = async (req, res) => {
     });
   }
 };
-
 
 // ✅ GET Products by Brand (clean endpoint)
 exports.getProductsByBrand = async (req, res) => {
