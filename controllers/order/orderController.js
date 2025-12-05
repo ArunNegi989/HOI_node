@@ -10,6 +10,8 @@ const {
 
 const sendCancelRequestEmailToOwner = require("../../utils/sendCancelRequestEmail");
 
+const { isCodAllowedForPincode } = require("../../config/codConfig"); // 👈 NEW
+
 const CANCELLABLE_STATUSES = ["PLACED", "CONFIRMED", "PROCESSING"];
 
 // 🔹 helper: totals
@@ -132,6 +134,19 @@ exports.createOrder = async (req, res) => {
 
     if (!paymentMethod || !["COD", "ONLINE"].includes(paymentMethod)) {
       return res.status(400).json({ message: "Invalid payment method" });
+    }
+
+    // 🔴 NEW: COD sirf Dehradun ke pincodes par allowed
+    if (paymentMethod === "COD") {
+      const pin = String(shippingAddress.pincode).trim();
+
+      if (!isCodAllowedForPincode(pin)) {
+        return res.status(400).json({
+          message:
+            "Cash on Delivery is currently available only for Dehradun serviceable pincodes. Please choose Online Payment.",
+          codAllowed: false,
+        });
+      }
     }
 
     // 1) get product IDs safely
@@ -391,7 +406,6 @@ exports.adminGetOrders = async (req, res) => {
 };
 
 // ✅ ADMIN: PATCH /v1/orders/admin/:id/status
-// ✅ ADMIN: PATCH /v1/orders/admin/:id/status
 exports.adminUpdateOrderStatus = async (req, res) => {
   try {
     const orderId = req.params.id;
@@ -493,5 +507,3 @@ exports.adminUpdateOrderStatus = async (req, res) => {
     return res.status(500).json({ message: "Failed to update order" });
   }
 };
-
-
